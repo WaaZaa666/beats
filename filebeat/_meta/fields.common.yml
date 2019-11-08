@@ -97,3 +97,59 @@
       type: alias
       path: event.created
       migration: true
+
+    - name: docker.attrs
+      type: object
+      object_type: keyword
+      description: >
+        docker.attrs contains labels and environment variables written by docker's JSON File logging driver.
+        These fields are only available when they are configured in the logging driver options.
+
+    - name: icmp.code
+      type: keyword
+      description: >
+        ICMP code.
+
+    - name: icmp.type
+      type: keyword
+      description: >
+        ICMP type.
+
+    - name: igmp.type
+      type: keyword
+      description: >
+        IGMP type.
+
+    - name: kafka
+      type: group
+      fields:
+        - name: topic
+          type: keyword
+          description: >
+            Kafka topic
+
+        - name: partition
+          type: long
+          description: >
+            Kafka partition number
+
+        - name: offset
+          type: long
+          description: >
+            Kafka offset of this message
+
+        - name: key
+          type: keyword
+          description: >
+            Kafka key, corresponding to the Kafka value stored in the message
+
+        - name: block_timestamp
+          type: date
+          description: >
+            Kafka outer (compressed) block timestamp
+
+        - name: headers
+          type: array
+          description: >
+            An array of Kafka header strings for this message, in the form
+            "<key>: <value>".

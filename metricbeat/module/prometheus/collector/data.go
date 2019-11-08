@@ -55,36 +55,42 @@ func getPromEventsFromMetricFamily(mf *dto.MetricFamily) []PromEvent {
 
 		counter := metric.GetCounter()
 		if counter != nil {
-			events = append(events, PromEvent{
-				data: common.MapStr{
-					name: counter.GetValue(),
-				},
-				labels: labels,
-			})
+			if !math.IsNaN(counter.GetValue()) && !math.IsInf(counter.GetValue(), 0) {
+				events = append(events, PromEvent{
+					data: common.MapStr{
+						name: counter.GetValue(),
+					},
+					labels: labels,
+				})
+			}
 		}
 
 		gauge := metric.GetGauge()
 		if gauge != nil {
-			events = append(events, PromEvent{
-				data: common.MapStr{
-					name: gauge.GetValue(),
-				},
-				labels: labels,
-			})
+			if !math.IsNaN(gauge.GetValue()) && !math.IsInf(gauge.GetValue(), 0) {
+				events = append(events, PromEvent{
+					data: common.MapStr{
+						name: gauge.GetValue(),
+					},
+					labels: labels,
+				})
+			}
 		}
 
 		summary := metric.GetSummary()
 		if summary != nil {
-			events = append(events, PromEvent{
-				data: common.MapStr{
-					name + "_sum":   summary.GetSampleSum(),
-					name + "_count": summary.GetSampleCount(),
-				},
-				labels: labels,
-			})
+			if !math.IsNaN(summary.GetSampleSum()) && !math.IsInf(summary.GetSampleSum(), 0) {
+				events = append(events, PromEvent{
+					data: common.MapStr{
+						name + "_sum":   summary.GetSampleSum(),
+						name + "_count": summary.GetSampleCount(),
+					},
+					labels: labels,
+				})
+			}
 
 			for _, quantile := range summary.GetQuantile() {
-				if math.IsNaN(quantile.GetValue()) {
+				if math.IsNaN(quantile.GetValue()) || math.IsInf(quantile.GetValue(), 0) {
 					continue
 				}
 
@@ -101,21 +107,27 @@ func getPromEventsFromMetricFamily(mf *dto.MetricFamily) []PromEvent {
 
 		histogram := metric.GetHistogram()
 		if histogram != nil {
-			events = append(events, PromEvent{
-				data: common.MapStr{
-					name + "_sum":   histogram.GetSampleSum(),
-					name + "_count": histogram.GetSampleCount(),
-				},
-				labels: labels,
-			})
+			if !math.IsNaN(histogram.GetSampleSum()) && !math.IsInf(histogram.GetSampleSum(), 0) {
+				events = append(events, PromEvent{
+					data: common.MapStr{
+						name + "_sum":   histogram.GetSampleSum(),
+						name + "_count": histogram.GetSampleCount(),
+					},
+					labels: labels,
+				})
+			}
 
 			for _, bucket := range histogram.GetBucket() {
+				if bucket.GetCumulativeCount() == uint64(math.NaN()) || bucket.GetCumulativeCount() == uint64(math.Inf(0)) {
+					continue
+				}
+
 				bucketLabels := labels.Clone()
 				bucketLabels["le"] = strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
 
 				events = append(events, PromEvent{
 					data: common.MapStr{
-						name: bucket.GetCumulativeCount(),
+						name + "_bucket": bucket.GetCumulativeCount(),
 					},
 					labels: bucketLabels,
 				})
@@ -124,12 +136,14 @@ func getPromEventsFromMetricFamily(mf *dto.MetricFamily) []PromEvent {
 
 		untyped := metric.GetUntyped()
 		if untyped != nil {
-			events = append(events, PromEvent{
-				data: common.MapStr{
-					name: untyped.GetValue(),
-				},
-				labels: labels,
-			})
+			if !math.IsNaN(untyped.GetValue()) && !math.IsInf(untyped.GetValue(), 0) {
+				events = append(events, PromEvent{
+					data: common.MapStr{
+						name: untyped.GetValue(),
+					},
+					labels: labels,
+				})
+			}
 		}
 	}
 	return events

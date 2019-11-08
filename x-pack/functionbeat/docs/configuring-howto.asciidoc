@@ -20,6 +20,7 @@ The following topics describe how to configure {beatname_uc}:
 * <<configuration-ssl>>
 * <<filtering-and-enhancing-data>>
 * <<configuring-ingest-node>>
+* <<{beatname_lc}-geoip>>
 * <<setup-kibana-endpoint>>
 * <<configuration-template>>
 * <<configuration-logging>>
@@ -40,7 +41,20 @@ include::{libbeat-dir}/docs/queueconfig.asciidoc[]
 :allplatforms!:
 
 [role="xpack"]
-include::{libbeat-dir}/docs/outputconfig.asciidoc[]
+include::{libbeat-dir}/docs/outputconfig.asciidoc[tag=shared-outputconfig]
+
+* <<elasticsearch-output>>
+* <<logstash-output>>
+* <<configure-cloud-id>>
+
+[role="xpack"]
+include::{libbeat-dir}/docs/outputs/output-elasticsearch.asciidoc[]
+
+[role="xpack"]
+include::{libbeat-dir}/docs/outputs/output-logstash.asciidoc[]
+
+[role="xpack"]
+include::{libbeat-dir}/docs/outputs/output-cloud.asciidoc[]
 
 [role="xpack"]
 include::{libbeat-dir}/docs/shared-ilm.asciidoc[]
@@ -52,6 +66,9 @@ include::./filtering.asciidoc[]
 
 [role="xpack"]
 include::{libbeat-dir}/docs/shared-config-ingest.asciidoc[]
+
+[role="xpack"]
+include::{libbeat-dir}/docs/shared-geoip.asciidoc[]
 
 [role="xpack"]
 include::{libbeat-dir}/docs/shared-kibana-config.asciidoc[]

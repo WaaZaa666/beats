@@ -25,24 +25,34 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"testing"
 
+	"github.com/elastic/go-lookslike/isdef"
+
 	"github.com/stretchr/testify/require"
+
+	"github.com/elastic/go-lookslike"
+	"github.com/elastic/go-lookslike/testslike"
 
 	"github.com/elastic/beats/heartbeat/hbtest"
 	"github.com/elastic/beats/heartbeat/monitors/wrappers"
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
-	"github.com/elastic/beats/libbeat/common/mapval"
 	btesting "github.com/elastic/beats/libbeat/testing"
 )
 
 func testTCPCheck(t *testing.T, host string, port uint16) *beat.Event {
-	config, err := common.NewConfigFrom(common.MapStr{
+	config := common.MapStr{
 		"hosts":   host,
 		"ports":   port,
 		"timeout": "1s",
-	})
+	}
+	return testTCPConfigCheck(t, config, host, port)
+}
+
+func testTCPConfigCheck(t *testing.T, configMap common.MapStr, host string, port uint16) *beat.Event {
+	config, err := common.NewConfigFrom(configMap)
 	require.NoError(t, err)
 
 	jobs, endpoints, err := create("tcp", config)
@@ -91,27 +101,23 @@ func setupServer(t *testing.T, serverCreator func(http.Handler) *httptest.Server
 	return server, port
 }
 
-func tcpMonitorChecks(host string, ip string, port uint16, status string) mapval.Validator {
-	return hbtest.BaseChecks(ip, status, "tcp")
-}
-
 func TestUpEndpointJob(t *testing.T) {
 	server, port := setupServer(t, httptest.NewServer)
 	defer server.Close()
 
 	event := testTCPCheck(t, "localhost", port)
 
-	mapval.Test(
+	testslike.Test(
 		t,
-		mapval.Strict(mapval.Compose(
+		lookslike.Strict(lookslike.Compose(
 			hbtest.BaseChecks("127.0.0.1", "up", "tcp"),
 			hbtest.SummaryChecks(1, 0),
 			hbtest.SimpleURLChecks(t, "tcp", "localhost", port),
 			hbtest.RespondingTCPChecks(),
-			mapval.MustCompile(mapval.Map{
-				"resolve": mapval.Map{
+			lookslike.MustCompile(map[string]interface{}{
+				"resolve": map[string]interface{}{
 					"ip":     "127.0.0.1",
-					"rtt.us": mapval.IsDuration,
+					"rtt.us": isdef.IsDuration,
 				},
 			}),
 		)),
@@ -144,9 +150,9 @@ func TestTLSConnection(t *testing.T) {
 	defer os.Remove(certFile.Name())
 
 	event := testTLSTCPCheck(t, ip, port, certFile.Name())
-	mapval.Test(
+	testslike.Test(
 		t,
-		mapval.Strict(mapval.Compose(
+		lookslike.Strict(lookslike.Compose(
 			hbtest.TLSChecks(0, 0, cert),
 			hbtest.RespondingTCPChecks(),
 			hbtest.BaseChecks(ip, "up", "tcp"),
@@ -165,10 +171,10 @@ func TestConnectionRefusedEndpointJob(t *testing.T) {
 	event := testTCPCheck(t, ip, port)
 
 	dialErr := fmt.Sprintf("dial tcp %s:%d", ip, port)
-	mapval.Test(
+	testslike.Test(
 		t,
-		mapval.Strict(mapval.Compose(
-			tcpMonitorChecks(ip, ip, port, "down"),
+		lookslike.Strict(lookslike.Compose(
+			hbtest.BaseChecks(ip, "down", "tcp"),
 			hbtest.SummaryChecks(0, 1),
 			hbtest.SimpleURLChecks(t, "tcp", ip, port),
 			hbtest.ErrorChecks(dialErr, "io"),
@@ -183,14 +189,137 @@ func TestUnreachableEndpointJob(t *testing.T) {
 	event := testTCPCheck(t, ip, port)
 
 	dialErr := fmt.Sprintf("dial tcp %s:%d", ip, port)
-	mapval.Test(
+	testslike.Test(
 		t,
-		mapval.Strict(mapval.Compose(
-			tcpMonitorChecks(ip, ip, port, "down"),
+		lookslike.Strict(lookslike.Compose(
+			hbtest.BaseChecks(ip, "down", "tcp"),
 			hbtest.SummaryChecks(0, 1),
 			hbtest.SimpleURLChecks(t, "tcp", ip, port),
 			hbtest.ErrorChecks(dialErr, "io"),
 		)),
 		event.Fields,
 	)
+}
+
+func TestCheckUp(t *testing.T) {
+	host, port, ip, closeEcho, err := startEchoServer(t)
+	require.NoError(t, err)
+	defer closeEcho()
+
+	configMap := common.MapStr{
+		"hosts":         host,
+		"ports":         port,
+		"timeout":       "1s",
+		"check.receive": "echo123",
+		"check.send":    "echo123",
+	}
+
+	event := testTCPConfigCheck(t, configMap, host, port)
+
+	testslike.Test(
+		t,
+		lookslike.Strict(lookslike.Compose(
+			hbtest.BaseChecks(ip, "up", "tcp"),
+			hbtest.RespondingTCPChecks(),
+			hbtest.SimpleURLChecks(t, "tcp", host, port),
+			hbtest.SummaryChecks(1, 0),
+			lookslike.MustCompile(map[string]interface{}{
+				"resolve": map[string]interface{}{
+					"ip":     ip,
+					"rtt.us": isdef.IsDuration,
+				},
+				"tcp": map[string]interface{}{
+					"rtt.validate.us": isdef.IsDuration,
+				},
+			}),
+		)),
+		event.Fields,
+	)
+}
+
+func TestCheckDown(t *testing.T) {
+	host, port, ip, closeEcho, err := startEchoServer(t)
+	require.NoError(t, err)
+	defer closeEcho()
+
+	configMap := common.MapStr{
+		"hosts":         host,
+		"ports":         port,
+		"timeout":       "1s",
+		"check.receive": "BOOM", // should fail
+		"check.send":    "echo123",
+	}
+
+	event := testTCPConfigCheck(t, configMap, host, port)
+
+	testslike.Test(
+		t,
+		lookslike.Strict(lookslike.Compose(
+			hbtest.BaseChecks(ip, "down", "tcp"),
+			hbtest.RespondingTCPChecks(),
+			hbtest.SimpleURLChecks(t, "tcp", host, port),
+			hbtest.SummaryChecks(0, 1),
+			lookslike.MustCompile(map[string]interface{}{
+				"resolve": map[string]interface{}{
+					"ip":     ip,
+					"rtt.us": isdef.IsDuration,
+				},
+				"tcp": map[string]interface{}{
+					"rtt.validate.us": isdef.IsDuration,
+				},
+				"error": map[string]interface{}{
+					"type":    "validate",
+					"message": "received string mismatch",
+				},
+			}),
+		)), event.Fields)
+}
+
+func TestNXDomainJob(t *testing.T) {
+	host := "notadomainatallforsure.notadomain.notatldreally"
+	port := uint16(1234)
+	event := testTCPCheck(t, host, port)
+
+	dialErr := fmt.Sprintf("lookup %s", host)
+	testslike.Test(
+		t,
+		lookslike.Strict(lookslike.Compose(
+			hbtest.BaseChecks("", "down", "tcp"),
+			hbtest.SummaryChecks(0, 1),
+			hbtest.SimpleURLChecks(t, "tcp", host, port),
+			hbtest.ErrorChecks(dialErr, "io"),
+		)),
+		event.Fields,
+	)
+}
+
+// startEchoServer starts a simple TCP echo server for testing. Only handles a single connection once.
+// Note you MUST connect to this server exactly once to avoid leaking a goroutine. This is only useful
+// for the specific tests used here.
+func startEchoServer(t *testing.T) (host string, port uint16, ip string, close func() error, err error) {
+	// Simple echo server
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return "", 0, "", nil, err
+	}
+	go func() {
+		conn, err := listener.Accept()
+		require.NoError(t, err)
+		buf := make([]byte, 1024)
+		rlen, err := conn.Read(buf)
+		require.NoError(t, err)
+		wlen, err := conn.Write(buf[:rlen])
+		require.NoError(t, err)
+		// Normally we'd retry partial writes, but for tests this is OK
+		require.Equal(t, wlen, rlen)
+	}()
+
+	ip, portStr, err := net.SplitHostPort(listener.Addr().String())
+	portUint64, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		listener.Close()
+		return "", 0, "", nil, err
+	}
+
+	return "localhost", uint16(portUint64), ip, listener.Close, nil
 }

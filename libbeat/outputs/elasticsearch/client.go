@@ -19,6 +19,7 @@ package elasticsearch
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,8 +66,10 @@ type Client struct {
 type ClientSettings struct {
 	URL                string
 	Proxy              *url.URL
+	ProxyDisable       bool
 	TLS                *transport.TLSConfig
 	Username, Password string
+	APIKey             string
 	EscapeHTML         bool
 	Parameters         map[string]string
 	Headers            map[string]string
@@ -77,13 +80,15 @@ type ClientSettings struct {
 	Observer           outputs.Observer
 }
 
-type connectCallback func(client *Client) error
+// ConnectCallback defines the type for the function to be called when the Elasticsearch client successfully connects to the cluster
+type ConnectCallback func(client *Client) error
 
 // Connection manages the connection for a given client.
 type Connection struct {
 	URL      string
 	Username string
 	Password string
+	APIKey   string
 	Headers  map[string]string
 
 	http              *http.Client
@@ -139,9 +144,12 @@ func NewClient(
 	s ClientSettings,
 	onConnect *callbacksRegistry,
 ) (*Client, error) {
-	proxy := http.ProxyFromEnvironment
-	if s.Proxy != nil {
-		proxy = http.ProxyURL(s.Proxy)
+	var proxy func(*http.Request) (*url.URL, error)
+	if !s.ProxyDisable {
+		proxy = http.ProxyFromEnvironment
+		if s.Proxy != nil {
+			proxy = http.ProxyURL(s.Proxy)
+		}
 	}
 
 	pipeline := s.Pipeline
@@ -200,6 +208,7 @@ func NewClient(
 			URL:      s.URL,
 			Username: s.Username,
 			Password: s.Password,
+			APIKey:   base64.StdEncoding.EncodeToString([]byte(s.APIKey)),
 			Headers:  s.Headers,
 			http: &http.Client{
 				Transport: &http.Transport{
@@ -225,6 +234,16 @@ func NewClient(
 	}
 
 	client.Connection.onConnectCallback = func() error {
+		globalCallbackRegistry.mutex.Lock()
+		defer globalCallbackRegistry.mutex.Unlock()
+
+		for _, callback := range globalCallbackRegistry.callbacks {
+			err := callback(client)
+			if err != nil {
+				return err
+			}
+		}
+
 		if onConnect != nil {
 			onConnect.mutex.Lock()
 			defer onConnect.mutex.Unlock()
@@ -251,13 +270,18 @@ func (client *Client) Clone() *Client {
 
 	c, _ := NewClient(
 		ClientSettings{
-			URL:              client.URL,
-			Index:            client.index,
-			Pipeline:         client.pipeline,
-			Proxy:            client.proxyURL,
+			URL:      client.URL,
+			Index:    client.index,
+			Pipeline: client.pipeline,
+			Proxy:    client.proxyURL,
+			// Without the following nil check on proxyURL, a nil Proxy field will try
+			// reloading proxy settings from the environment instead of leaving them
+			// empty.
+			ProxyDisable:     client.proxyURL == nil,
 			TLS:              client.tlsConfig,
 			Username:         client.Username,
 			Password:         client.Password,
+			APIKey:           client.APIKey,
 			Parameters:       nil, // XXX: do not pass params?
 			Headers:          client.Headers,
 			Timeout:          client.http.Timeout,
@@ -308,7 +332,7 @@ func (client *Client) publishEvents(
 	}
 
 	origCount := len(data)
-	data = bulkEncodePublishRequest(body, client.index, client.pipeline, eventType, data)
+	data = bulkEncodePublishRequest(client.GetVersion(), body, client.index, client.pipeline, eventType, data)
 	newCount := len(data)
 	if st != nil && origCount > newCount {
 		st.Dropped(origCount - newCount)
@@ -365,6 +389,7 @@ func (client *Client) publishEvents(
 // fillBulkRequest encodes all bulk requests and returns slice of events
 // successfully added to bulk request.
 func bulkEncodePublishRequest(
+	version common.Version,
 	body bulkWriter,
 	index outputs.IndexSelector,
 	pipeline *outil.Selector,
@@ -374,7 +399,7 @@ func bulkEncodePublishRequest(
 	okEvents := data[:0]
 	for i := range data {
 		event := &data[i].Content
-		meta, err := createEventBulkMeta(index, pipeline, eventType, event)
+		meta, err := createEventBulkMeta(version, index, pipeline, eventType, event)
 		if err != nil {
 			logp.Err("Failed to encode event meta data: %s", err)
 			continue
@@ -390,6 +415,7 @@ func bulkEncodePublishRequest(
 }
 
 func createEventBulkMeta(
+	version common.Version,
 	indexSel outputs.IndexSelector,
 	pipelineSel *outil.Selector,
 	eventType string,
@@ -425,7 +451,7 @@ func createEventBulkMeta(
 		ID:       id,
 	}
 
-	if id != "" {
+	if id != "" || version.Major > 7 || (version.Major == 7 && version.Minor >= 5) {
 		return bulkCreateAction{meta}, nil
 	}
 	return bulkIndexAction{meta}, nil
@@ -721,7 +747,7 @@ func (conn *Connection) Ping() (string, error) {
 	}
 
 	debugf("Ping status code: %v", status)
-	logp.Info("Connected to Elasticsearch version %s", response.Version.Number)
+	logp.Info("Attempting to connect to Elasticsearch version %s", response.Version.Number)
 	return response.Version.Number, nil
 }
 
@@ -778,8 +804,13 @@ func (conn *Connection) execRequest(
 
 func (conn *Connection) execHTTPRequest(req *http.Request) (int, []byte, error) {
 	req.Header.Add("Accept", "application/json")
+
 	if conn.Username != "" || conn.Password != "" {
 		req.SetBasicAuth(conn.Username, conn.Password)
+	}
+
+	if conn.APIKey != "" {
+		req.Header.Add("Authorization", "ApiKey "+conn.APIKey)
 	}
 
 	for name, value := range conn.Headers {

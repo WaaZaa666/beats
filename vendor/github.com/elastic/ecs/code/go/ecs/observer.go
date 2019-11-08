@@ -21,9 +21,10 @@ package ecs
 
 // An observer is defined as a special network, security, or application device
 // used to detect, observe, or create network, security, or application-related
-// events and metrics. This could be a custom hardware appliance or a server
-// that has been configured to run special network, security, or application
-// software. Examples include firewalls, intrusion detection/prevention
+// events and metrics.
+// This could be a custom hardware appliance or a server that has been
+// configured to run special network, security, or application software.
+// Examples include firewalls, web proxies, intrusion detection/prevention
 // systems, network monitoring sensors, web application firewalls, data loss
 // prevention systems, and APM servers. The observer.* fields shall be
 // populated with details of the system, if any, that detects, observes and/or
@@ -40,7 +41,17 @@ type Observer struct {
 	// Hostname of the observer.
 	Hostname string `ecs:"hostname"`
 
-	// observer vendor information.
+	// Custom name of the observer.
+	// This is a name that can be given to an observer. This can be helpful for
+	// example if multiple firewalls of the same model are used in an
+	// organization.
+	// If no custom name is needed, the field can be left empty.
+	Name string `ecs:"name"`
+
+	// The product name of the observer.
+	Product string `ecs:"product"`
+
+	// Vendor name of the observer.
 	Vendor string `ecs:"vendor"`
 
 	// Observer version.

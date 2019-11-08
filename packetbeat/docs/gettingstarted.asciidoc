@@ -24,7 +24,7 @@ include::{libbeat-dir}/docs/shared-download-and-install.asciidoc[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {stack-version} of {beatname_uc} has not yet been released.
+Version {version} of {beatname_uc} has not yet been released.
 
 endif::[]
 
@@ -44,7 +44,7 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {stack-version} of {beatname_uc} has not yet been released.
+Version {version} of {beatname_uc} has not yet been released.
 
 endif::[]
 
@@ -69,7 +69,7 @@ See <<running-on-docker, Running on Docker>> for deploying Docker containers.
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {stack-version} of {beatname_uc} has not yet been released.
+Version {version} of {beatname_uc} has not yet been released.
 
 endif::[]
 
@@ -83,12 +83,14 @@ tar xzvf packetbeat-{version}-darwin-x86_64.tar.gz
 
 endif::[]
 
+include::{libbeat-dir}/docs/shared-brew-install.asciidoc[]
+
 [[linux]]
 *linux:*
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {stack-version} of {beatname_uc} has not yet been released.
+Version {version} of {beatname_uc} has not yet been released.
 
 endif::[]
 
@@ -107,15 +109,19 @@ endif::[]
 
 ifeval::["{release-state}"=="unreleased"]
 
-Version {stack-version} of {beatname_uc} has not yet been released.
+Version {version} of {beatname_uc} has not yet been released.
 
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-. Download and install WinPcap from this
-http://www.winpcap.org/install/default.htm[page]. WinPcap is a library that uses
-a driver to enable packet capturing.
+. Download and install a packet sniffing library,
+such as https://nmap.org/npcap/[Npcap], that implements the
+https://github.com/the-tcpdump-group/libpcap[libpcap] interfaces.
++
+If you use Npcap, make sure you install it in WinPcap API-compatible mode. If
+you plan to capture traffic from the loopback device (127.0.0.1 traffic), also
+select the option to support loopback traffic. 
 
 . Download the Packetbeat Windows zip file from the
 https://www.elastic.co/downloads/beats/packetbeat[downloads page].
@@ -233,7 +239,6 @@ include::{libbeat-dir}/docs/step-configure-kibana-endpoint.asciidoc[]
 
 include::{libbeat-dir}/docs/step-configure-credentials.asciidoc[]
 
-:requires-sudo: yes
 include::{libbeat-dir}/docs/step-test-config.asciidoc[]
 
 include::{libbeat-dir}/docs/step-look-at-config.asciidoc[]
@@ -241,13 +246,11 @@ include::{libbeat-dir}/docs/step-look-at-config.asciidoc[]
 [[packetbeat-template]]
 === Step 3: Load the index template in Elasticsearch
 
-:requires-sudo: yes
 include::{libbeat-dir}/docs/shared-template-load.asciidoc[]
 
 [[load-kibana-dashboards]]
 === Step 4: Set up the Kibana dashboards
 
-:requires-sudo: yes
 include::{libbeat-dir}/docs/dashboards.asciidoc[]
 
 [[packetbeat-starting]]
@@ -270,10 +273,7 @@ sudo service {beatname_lc} start
 
 *docker:*
 
-["source","sh",subs="attributes"]
-----------------------------------------------------------------------
-docker run {dockerimage}
-----------------------------------------------------------------------
+See <<running-on-docker>>.
 
 *mac and linux:*
 
@@ -284,8 +284,10 @@ sudo ./packetbeat -e
 ----------------------------------------------------------------------
 <1> You'll be running Packetbeat as root, so you need to change ownership of the
 configuration file, or run Packetbeat with `--strict.perms=false` specified. See
-{libbeat}/config-file-permissions.html[Config File Ownership and Permissions]in
+{beats-ref}/config-file-permissions.html[Config File Ownership and Permissions]in
 the _Beats Platform Reference_.
+
+include::{libbeat-dir}/docs/shared-brew-run.asciidoc[]
 
 *win:*
 
@@ -328,5 +330,8 @@ include::{libbeat-dir}/docs/opendashboards.asciidoc[]
 The dashboards are provided as examples. We recommend that you
 {kibana-ref}/dashboard.html[customize] them to meet your needs.
 
+TIP: To populate the client locations map in the overview dashboard, follow the
+steps described in <<{beatname_lc}-geoip>>.
+
 [role="screenshot"]
-image:./images/packetbeat-statistics.png[Packetbeat statistics]
+image::./images/packetbeat-statistics.png[Packetbeat statistics]

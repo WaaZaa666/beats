@@ -24,6 +24,8 @@ import (
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/processors"
+	"github.com/elastic/beats/libbeat/processors/checks"
+	jsprocessor "github.com/elastic/beats/libbeat/processors/script/javascript/module/processor"
 )
 
 type addFields struct {
@@ -36,12 +38,15 @@ const FieldsKey = "fields"
 
 func init() {
 	processors.RegisterPlugin("add_fields",
-		configChecked(createAddFields,
-			requireFields(FieldsKey),
-			allowedFields(FieldsKey, "target", "when")))
+		checks.ConfigChecked(CreateAddFields,
+			checks.RequireFields(FieldsKey),
+			checks.AllowedFields(FieldsKey, "target", "when")))
+
+	jsprocessor.RegisterPlugin("AddFields", CreateAddFields)
 }
 
-func createAddFields(c *common.Config) (processors.Processor, error) {
+// CreateAddFields constructs an add_fields processor from config.
+func CreateAddFields(c *common.Config) (processors.Processor, error) {
 	config := struct {
 		Fields common.MapStr `config:"fields" validate:"required"`
 		Target *string       `config:"target"`

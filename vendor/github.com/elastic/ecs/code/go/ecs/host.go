@@ -19,10 +19,10 @@
 
 package ecs
 
-// A host is defined as a general computing instance. ECS host.* fields should
-// be populated with details about the host on which the event happened, or on
-// which the measurement was taken. Host types include hardware, virtual
-// machines, Docker containers, and Kubernetes nodes.
+// A host is defined as a general computing instance.
+// ECS host.* fields should be populated with details about the host on which
+// the event happened, or from which the measurement was taken. Host types
+// include hardware, virtual machines, Docker containers, and Kubernetes nodes.
 type Host struct {
 	// Hostname of the host.
 	// It normally contains what the `hostname` command returns on the host
@@ -52,6 +52,9 @@ type Host struct {
 	// vm, this could be the container, for example, or other information
 	// meaningful in your environment.
 	Type string `ecs:"type"`
+
+	// Seconds the host has been up.
+	Uptime int64 `ecs:"uptime"`
 
 	// Operating system architecture.
 	Architecture string `ecs:"architecture"`
