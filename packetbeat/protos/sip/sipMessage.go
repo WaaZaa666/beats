@@ -75,7 +75,8 @@ type sipMessage struct {
 
 func (msg sipMessage) String() string {
 	outputs := ""
-	outputs += fmt.Sprintf("%s:Src:%s:%d -> Dst:%s:%d ,", msg.ts,
+	outputs += fmt.Sprintf("%s:Src:%s:%d -> Dst:%s:%d ,", 
+		msg.ts,
 		msg.tuple.SrcIP,
 		msg.tuple.SrcPort,
 		msg.tuple.DstIP,

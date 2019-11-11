@@ -2,6 +2,7 @@
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.dev.yml
+packetbeat.yml
 
 /docs/html_docs
 /build/

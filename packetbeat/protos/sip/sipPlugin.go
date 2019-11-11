@@ -123,6 +123,10 @@ func (sip *sipPlugin) publishMessage(msg *sipMessage) {
 	timestamp := msg.ts
 	fields := common.MapStr{}
 	fields["type"] = "sip"
+	fields["destination.ip"] = msg.tuple.DstIP.String()
+	fields["source.ip"] = msg.tuple.SrcIP.String()
+	fields["destination.port"] = msg.tuple.DstPort
+	fields["source.port"] = msg.tuple.SrcPort
 	fields["unixtimenano"] = timestamp.UnixNano()
 	fields["transport"] = msg.transport.String()
 
