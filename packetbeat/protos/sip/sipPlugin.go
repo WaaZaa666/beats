@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"regexp"
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/common"
@@ -148,8 +149,19 @@ func (sip *sipPlugin) publishMessage(msg *sipMessage) {
 		sipFields["status-phrase"] = fmt.Sprintf("%s", msg.statusPhrase)
 	}
 
+	re := regexp.MustCompile(`([0-9]+)\@([a-z0-9.:]+)`)
+	toRegExp := re.FindStringSubmatch(fmt.Sprintf("%s",msg.to))
+	sipFields["to-user"] = fmt.Sprintf("%s",toRegExp[1])
+	sipFields["to-domain"] = fmt.Sprintf("%s", toRegExp[2])
+
+	fromRegExp := re.FindStringSubmatch(fmt.Sprintf("%s",msg.from))
+	sipFields["from-user"] = fmt.Sprintf("%s",fromRegExp[1])
+	sipFields["from-domain"] = fmt.Sprintf("%s", fromRegExp[2])
+
+
 	sipFields["from"] = fmt.Sprintf("%s", msg.from)
 	sipFields["to"] = fmt.Sprintf("%s", msg.to)
+	
 	sipFields["cseq"] = fmt.Sprintf("%s", msg.cseq)
 	sipFields["call-id"] = fmt.Sprintf("%s", msg.callid)
 
@@ -266,7 +278,7 @@ func (sip *sipPlugin) publishMessage(msg *sipMessage) {
 	}
 
 	if msg.notes != nil {
-		fields["notes"] = fmt.Sprintf("%s", msg.notes)
+		sipFields["notes"] = fmt.Sprintf("%s", msg.notes)
 	}
 
 	sip.results(beat.Event{
